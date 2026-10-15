@@ -27,8 +27,8 @@ build: ## Build (or rebuild) the dev image.
 	$(COMPOSE) build
 
 .PHONY: up
-up: ## Start the stack in the background (PORT=N overrides default 8088).
-	PORT=$(PORT) $(COMPOSE) up -d
+up: ## Start the stack in the background (PORT=N overrides; else .env, else 8088).
+	$(if $(PORT),PORT=$(PORT)) $(COMPOSE) up -d
 
 .PHONY: down
 down: ## Stop the stack and remove containers.
@@ -88,7 +88,7 @@ check: test behat stan cs ## Run the full quality gate.
 
 .PHONY: mysql-up
 mysql-up: ## Start the stack including the MySQL service (PORT=N supported).
-	PORT=$(PORT) $(COMPOSE) --profile mysql up -d
+	$(if $(PORT),PORT=$(PORT)) $(COMPOSE) --profile mysql up -d
 
 .PHONY: play
 play: ## Run a local Battlesnake game against the running snake (requires `make up`).

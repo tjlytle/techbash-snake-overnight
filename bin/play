@@ -27,4 +27,5 @@ done
 printf '%s play %s\n' "$(date +%H:%M:%S)" "${args[*]}" | tee -a "$LOG/play.log"
 out=$(battlesnake "${args[@]}" 2>&1)
 echo "$out" | grep -iE "game completed|winner|draw|error|warn" | tail -n 4 | tee -a "$LOG/play.log"
-echo "$out" | grep -oE "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" | head -1 | sed 's/^/game id: /' | tee -a "$LOG/play.log"
+# The rules CLI does not print the game id it sent; the store knows it as the newest game.
+(cd "$ROOT" && make -s games ARGS="list 1" 2>/dev/null | tail -n 1 | awk '{print "newest game: " $1 "  (" $4 " turns, win " $5 ")"}') | tee -a "$LOG/play.log"

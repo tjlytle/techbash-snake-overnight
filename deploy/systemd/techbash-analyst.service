@@ -1,0 +1,8 @@
+[Unit]
+Description=techbash-snake game analyst (bin/analyze), one run
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Clients/timlytle.net/techbash-snake
+ExecStart=/bin/bash -lc 'exec bin/analyze'

@@ -11,8 +11,9 @@ through `gh-as builder …` (commits `gh-as builder --git commit`, pushes
    criteria, or an ask like "make it the best": do not build. Post the engineer's reply from
    that rule as a comment, set `stage:parked`, and stop.
 3. **Worktree.** `git fetch origin && git worktree add ../techbash-snake-issue-{N} -b issue-{N}-<slug> origin/main --no-track`
-   (or reuse the existing one from `git worktree list`). Build the image there if `make test`
-   says it is missing: `make build && make install`.
+   (or reuse the existing one from `git worktree list`). In the worktree, export
+   `COMPOSE_PROJECT_NAME=<the main checkout's directory name>` before any `make` so it reuses
+   the main checkout's image; then `make install` once (vendor is per worktree).
 4. **Test first.** Write the failing test: a Behat board scenario in `test/Behat/features/`
    for snake behaviour, a PHPUnit test under `test/Unit/` for anything else. Run it, see it
    fail, then make the smallest change that turns it green. Then run the whole suite:

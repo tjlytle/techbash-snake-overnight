@@ -52,6 +52,7 @@
         "migrate": "doctrine-migrations migrate --no-interaction",
         "test": "phpunit",
         "behat": "behat",
+        "games": "php bin/games",
         "stan": "phpstan analyse",
         "cs": "phpcs"
     },

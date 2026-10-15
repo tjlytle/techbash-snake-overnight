@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# bin/install-services — keep the pipeline and the analyst running under systemd (user units).
+#
+#   bin/install-services          install and start: the pipeline loop, the hourly analyst timer
+#   bin/install-services remove   stop and remove them
+#
+# Units live in deploy/systemd/ and expect the checkout at ~/Clients/timlytle.net/techbash-snake.
+# They run under a login shell so claude, gh and gh-as resolve the same way they do for you.
+# `loginctl enable-linger $USER` keeps user units running when you are not logged in.
+set -eu
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+UNITS=(techbash-pipeline.service techbash-analyst.service techbash-analyst.timer)
+DEST=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
+
+case "${1:-}" in
+  remove)
+    systemctl --user disable --now techbash-pipeline.service techbash-analyst.timer 2>/dev/null || true
+    for u in "${UNITS[@]}"; do rm -f "$DEST/$u"; done
+    systemctl --user daemon-reload
+    echo "removed" ;;
+  "")
+    mkdir -p "$DEST"
+    for u in "${UNITS[@]}"; do cp "$ROOT/deploy/systemd/$u" "$DEST/$u"; done
+    systemctl --user daemon-reload
+    systemctl --user enable --now techbash-pipeline.service techbash-analyst.timer
+    systemctl --user --no-pager status techbash-pipeline.service techbash-analyst.timer | head -20
+    loginctl show-user "$USER" -p Linger | grep -q yes || echo "run: loginctl enable-linger $USER   (keeps them running after logout)" ;;
+  *) sed -n '2,10p' "$0"; exit 2 ;;
+esac

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# bin/play — play one game against the running snake, so there is something to analyse.
+#
+#   bin/play                          a solo game, 11x11, against our snake
+#   bin/play <name> <url> [...]       add opponents by name and URL (pairs; see pipeline/opponents.md)
+#   bin/play --browser ...            also open the board in a browser (presenting machine only)
+#
+# Uses the official rules CLI (`battlesnake`). SNAKE_URL is our snake (default
+# http://localhost:8088; the overnight checkout sets its own). Prints the result line and the
+# game id, which is what `make games ARGS="game <id>"` wants next. Log: var/pipeline/play.log
+set -u
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+[ -f "$ROOT/.env" ] && . "$ROOT/.env"          # PORT=…, the same file docker compose reads
+SNAKE_URL=${SNAKE_URL:-http://localhost:${PORT:-8088}}
+LOG="$ROOT/var/pipeline"
+mkdir -p "$LOG"
+
+args=(play -W 11 -H 11 --name techbash --url "$SNAKE_URL" -t 1000 -d 0)
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --browser) args+=(--browser); shift ;;
+    *) [ $# -ge 2 ] || { echo "opponents come in pairs: <name> <url>" >&2; exit 2; }
+       args+=(--name "$1" --url "$2"); shift 2 ;;
+  esac
+done
+
+printf '%s play %s\n' "$(date +%H:%M:%S)" "${args[*]}" | tee -a "$LOG/play.log"
+out=$(battlesnake "${args[@]}" 2>&1)
+echo "$out" | grep -iE "game completed|winner|draw|error|warn" | tail -n 4 | tee -a "$LOG/play.log"
+echo "$out" | grep -oE "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" | head -1 | sed 's/^/game id: /' | tee -a "$LOG/play.log"

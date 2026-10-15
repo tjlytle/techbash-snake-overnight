@@ -1,0 +1,14 @@
+[Unit]
+Description=techbash-snake issue pipeline (bin/pipeline)
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Clients/timlytle.net/techbash-snake
+ExecStart=/bin/bash -lc 'exec bin/pipeline'
+Restart=always
+RestartSec=10
+KillMode=process
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# bin/analyze — the analyst: play games, read the event store, file lessons as `idea` issues.
+#
+#   bin/analyze [minutes]     one session, stopping itself after <minutes> (default 45)
+#   bin/analyze --status      is a session running, and since when
+#
+# Runs pipeline/analyze.md as the ops persona in a headless Claude Code session with a
+# deadline written into the prompt. The session plays games (bin/play), reads them with the
+# project's own CLI (make games ARGS="…"), files and follows up on issues, and exits before
+# the deadline. The systemd unit restarts it, so "is the analyst running?" is systemd's
+# question and a session never outlives its deadline by much.
+# Marker: var/pipeline/analyst/ (pid, started). Log: var/pipeline/analyze.log
+set -u
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+MODEL=${PIPELINE_MODEL:-opus}
+LOG="$ROOT/var/pipeline"
+MARK="$LOG/analyst"
+mkdir -p "$LOG"
+
+ALLOW=(
+  "Read" "Glob" "Grep" "Write" "TodoWrite"
+  "Bash(bin/play *)" "Bash(bin/play)" "Bash(make games *)" "Bash(docker compose run *)"
+  "Bash(gh-as *)" "Bash(gh-personas *)" "Bash(gh *)" "Bash(git log *)" "Bash(git show *)"
+  "Bash(ls *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(grep *)" "Bash(jq *)"
+  "Bash(mkdir *)" "Bash(echo *)" "Bash(date *)" "Bash(date)" "Bash(wc *)" "Bash(sleep *)"
+)
+
+if [ "${1:-}" = "--status" ]; then
+  if [ -f "$MARK/pid" ] && kill -0 "$(cat "$MARK/pid")" 2>/dev/null; then
+    echo "analyst running since $(cat "$MARK/started"), pid $(cat "$MARK/pid")"
+  else
+    echo "no analyst session running"
+  fi
+  exit 0
+fi
+
+MINUTES=${1:-45}
+if [ -f "$MARK/pid" ] && kill -0 "$(cat "$MARK/pid")" 2>/dev/null; then
+  echo "an analyst session is already running (pid $(cat "$MARK/pid"))"; exit 0
+fi
+mkdir -p "$MARK"
+echo $$ > "$MARK/pid"
+date +%H:%M:%S > "$MARK/started"
+trap 'rm -rf "$MARK"' EXIT
+
+DEADLINE=$(date -d "+$MINUTES minutes" +%H:%M)
+PROMPT=$(sed -e "s/{DEADLINE}/$DEADLINE/g" -e "s/{NOW}/$(date +%H:%M)/g" "$ROOT/pipeline/analyze.md")
+
+printf '%s analyst session (%s), deadline %s\n' "$(date +%H:%M:%S)" "$MODEL" "$DEADLINE" | tee -a "$LOG/analyze.log"
+cd "$ROOT" && timeout --foreground "$(( (MINUTES + 10) * 60 ))" \
+  claude -p "$PROMPT" --model "$MODEL" --permission-mode acceptEdits --allowedTools "${ALLOW[@]}" \
+  --output-format text 2>&1 | sed -u 's/^/  analyst │ /' | tee -a "$LOG/analyze.log"
+printf '%s analyst session ended\n' "$(date +%H:%M:%S)" | tee -a "$LOG/analyze.log"

@@ -103,3 +103,7 @@ clean: ## Remove containers, named volumes, and the locally-built image.
 
 .PHONY: fresh
 fresh: clean build up migrate ## Nuke everything and rebuild from zero, then migrate.
+
+.PHONY: games
+games: ## Read the game history: make games ARGS="list" / ARGS="turn <id> <n>" (bin/games help).
+	$(RUN) php bin/games $(ARGS)

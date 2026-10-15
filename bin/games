@@ -1,0 +1,374 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * bin/games — read the snake's event-sourced game history.
+ *
+ *   games list [limit] [since]         recent games, newest first, with their stats; since = ISO date/time
+ *   games game <id>                    one game: ruleset, opponents, how it ended, turns worth a look
+ *   games turn <id> <n>                one turn as the board the specs draw, our move, what it led to
+ *   games last <id> [count]            the final turns of a game, oldest first
+ *   games scenario <id> <n> [move]     a Behat scenario for that turn's board, ready to paste
+ *
+ * <id> may be a unique prefix. Runs inside the stack's PHP container:
+ *   make games ARGS="turn 1d5c8d36 12"
+ *
+ * Every game is a stream of events (table domain_messages): Start, then Turn (the game state
+ * the engine sent) followed by Move (the direction we answered), and End. This script
+ * replays them through the same serializer the platform uses, so it reads real domain objects.
+ */
+
+require __DIR__ . '/../bootstrap.php';
+
+use BattleSnake\Core\ApplicationFactory;
+use BattleSnake\Domain\Battlesnake;
+use BattleSnake\Domain\Coordinate;
+use BattleSnake\Domain\Direction;
+use BattleSnake\Domain\GameState;
+use BattleSnake\EventSourcing\Events\End;
+use BattleSnake\EventSourcing\Events\Move;
+use BattleSnake\EventSourcing\Events\Nudge;
+use BattleSnake\EventSourcing\Events\Start;
+use BattleSnake\EventSourcing\Events\Turn;
+use Doctrine\DBAL\Connection;
+use EventSauce\EventSourcing\Serialization\MessageSerializer;
+
+// SnekSpec letters per snake: head, tail, body. Ours is S/T/t; the parser reads the lowest head as "you".
+const LETTERS = [['S', 'T', 't'], ['U', 'V', 'v'], ['W', 'X', 'x'], ['A', 'B', 'b'], ['C', 'D', 'd'], ['E', 'F', 'f']];
+
+/** One turn of a game: the state the engine sent and the move we answered. */
+final class Replayed
+{
+    public function __construct(
+        public readonly int $turn,
+        public readonly GameState $state,
+        public readonly string $recorded,
+        public ?string $move = null,
+    ) {
+    }
+}
+
+final class Games
+{
+    private readonly Connection $db;
+    private readonly MessageSerializer $serializer;
+
+    public function __construct()
+    {
+        $container = (new ApplicationFactory())->makeContainer();
+        $this->db = $container->get(Connection::class);
+        $this->serializer = $container->get(MessageSerializer::class);
+    }
+
+    public function resolve(string $prefix): string
+    {
+        $ids = $this->db->fetchFirstColumn(
+            'SELECT DISTINCT aggregate_root_id FROM domain_messages WHERE aggregate_root_id LIKE ?',
+            [$prefix . '%'],
+        );
+        if (\count($ids) === 1) {
+            return (string) $ids[0];
+        }
+        throw new RuntimeException($ids === [] ? "no game '$prefix'" : \count($ids) . " games match '$prefix'; use a longer prefix");
+    }
+
+    /** @return list<Replayed> */
+    public function turns(string $gameId): array
+    {
+        $out = [];
+        $rows = $this->db->iterateAssociative(
+            'SELECT payload FROM domain_messages WHERE aggregate_root_id = ? ORDER BY version',
+            [$gameId],
+        );
+        foreach ($rows as $row) {
+            $decoded = \json_decode((string) $row['payload'], true, 512, \JSON_THROW_ON_ERROR);
+            $unserialized = $this->serializer->unserializePayload($decoded);
+            // EventSauce 3 returns one Message here; older releases yielded them.
+            $messages = $unserialized instanceof Traversable ? $unserialized : [$unserialized];
+            foreach ($messages as $message) {
+                $event = $message->payload();
+                $when = (string) ($message->header('__time_of_recording') ?? '');
+                if ($event instanceof Start || $event instanceof Turn || $event instanceof End) {
+                    $out[] = new Replayed($event->state->turn, $event->state, $when);
+                } elseif ($event instanceof Move && $out !== []) {
+                    $out[\array_key_last($out)]->move = $event->direction->value;
+                } elseif ($event instanceof Nudge && $out !== []) {
+                    $out[\array_key_last($out)]->move = 'nudge:' . $event->direction->value;
+                }
+            }
+        }
+        return $out;
+    }
+
+    /** @return array<string, array{win: bool, length: int, survived: int}> */
+    public function stats(): array
+    {
+        $stats = [];
+        foreach ($this->db->fetchAllAssociative('SELECT * FROM game_stats') as $row) {
+            $stats[(string) $row['aggregate_id']] = [
+                'win' => (bool) $row['win'], 'length' => (int) $row['length'], 'survived' => (int) $row['survived'],
+            ];
+        }
+        return $stats;
+    }
+
+    /** @return list<string> newest first */
+    public function ids(int $limit): array
+    {
+        return \array_map('strval', $this->db->fetchFirstColumn(
+            'SELECT aggregate_root_id FROM domain_messages GROUP BY aggregate_root_id ORDER BY MAX(id) DESC LIMIT ' . $limit,
+        ));
+    }
+}
+
+/** @return list<Battlesnake> ours first */
+function ordered(GameState $state): array
+{
+    $ours = [];
+    $others = [];
+    foreach ($state->board->snakes as $snake) {
+        if ($snake->id === $state->you->id) {
+            $ours[] = $snake;
+        } else {
+            $others[] = $snake;
+        }
+    }
+    return [...$ours, ...$others];
+}
+
+function board(GameState $state): string
+{
+    $w = $state->board->width;
+    $h = $state->board->height;
+    $grid = \array_fill(0, $h, \array_fill(0, $w, '-'));
+    foreach ($state->board->food as $c) {
+        $grid[$c->y][$c->x] = '0';
+    }
+    foreach ($state->board->hazards as $c) {
+        $grid[$c->y][$c->x] = '/';
+    }
+    foreach (ordered($state) as $i => $snake) {
+        [$head, $tail, $body] = LETTERS[\min($i, \count(LETTERS) - 1)];
+        $segments = $snake->body->coordinates;
+        $last = \count($segments) - 1;
+        // Tail first, head last, so the head wins on stacked cells (turn 0 stacks all three).
+        for ($k = $last; $k >= 0; $k--) {
+            $c = $segments[$k];
+            $grid[$c->y][$c->x] = $k === 0 ? $head : ($k === $last ? $tail : $body);
+        }
+    }
+    $lines = \array_map(static fn(array $row): string => \implode('', $row), \array_reverse($grid));
+    return \implode("\n", $lines);
+}
+
+function legend(GameState $state): string
+{
+    $lines = [];
+    foreach (ordered($state) as $i => $snake) {
+        [$head, $tail, $body] = LETTERS[\min($i, \count(LETTERS) - 1)];
+        $who = $snake->id === $state->you->id ? 'us' : $snake->name;
+        $lines[] = "  $head/$body/$tail: $who, length {$snake->length}, health {$snake->health}";
+    }
+    return \implode("\n", $lines);
+}
+
+function alive(GameState $state): bool
+{
+    foreach ($state->board->snakes as $snake) {
+        if ($snake->id === $state->you->id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function step(Coordinate $from, string $move): Coordinate
+{
+    return match (Direction::from($move)) {
+        Direction::UP => new Coordinate($from->x, $from->y + 1),
+        Direction::DOWN => new Coordinate($from->x, $from->y - 1),
+        Direction::LEFT => new Coordinate($from->x - 1, $from->y),
+        Direction::RIGHT => new Coordinate($from->x + 1, $from->y),
+    };
+}
+
+function same(Coordinate $a, Coordinate $b): bool
+{
+    return $a->x === $b->x && $a->y === $b->y;
+}
+
+/** One line on what the move answered on $prev led to, read from the next state. */
+function happened(Replayed $prev, ?Replayed $next): string
+{
+    if ($prev->move === null) {
+        return 'no move recorded';
+    }
+    $move = \str_contains($prev->move, ':') ? \explode(':', $prev->move)[1] : $prev->move;
+    if ($next === null) {
+        return "we answered $move; nothing recorded after it";
+    }
+    $you = $prev->state->you;
+    if (alive($next->state)) {
+        $after = $next->state->you;
+        $ate = $after->health === 100 && $you->health < 100 ? ', ate' : '';
+        return "we answered $move; health {$you->health}→{$after->health}, length {$you->length}→{$after->length}$ate";
+    }
+    $head = $you->head ?? $you->body->coordinates[0];
+    $to = step($head, $move);
+    $board = $prev->state->board;
+    if ($to->x < 0 || $to->y < 0 || $to->x >= $board->width || $to->y >= $board->height) {
+        return "we answered $move and left the board: eliminated";
+    }
+    foreach ($board->snakes as $snake) {
+        $segments = $snake->body->coordinates;
+        \array_pop($segments);   // tails move on
+        foreach ($segments as $c) {
+            if (same($c, $to)) {
+                $what = $snake->id === $you->id ? 'our own body' : $snake->name;
+                return "we answered $move into $what: eliminated";
+            }
+        }
+        if ($snake->id !== $you->id && $snake->length >= $you->length) {
+            $theirHead = $snake->head ?? $segments[0];
+            foreach (['up', 'down', 'left', 'right'] as $d) {
+                if (same(step($theirHead, $d), $to)) {
+                    return "we answered $move and met {$snake->name}'s head (length {$snake->length} vs ours {$you->length}): eliminated";
+                }
+            }
+        }
+    }
+    if ($you->health <= 1) {
+        return "we answered $move with health {$you->health}: starved";
+    }
+    return "we answered $move: eliminated (cause not obvious from the board)";
+}
+
+function opponents(GameState $state): string
+{
+    $names = [];
+    foreach ($state->board->snakes as $snake) {
+        if ($snake->id !== $state->you->id) {
+            $names[] = $snake->name;
+        }
+    }
+    return \implode(', ', $names) ?: 'none';
+}
+
+function fatal(array $turns): ?int
+{
+    foreach ($turns as $i => $t) {
+        if ($t->move !== null && isset($turns[$i + 1]) && ! alive($turns[$i + 1]->state)) {
+            return $i;
+        }
+    }
+    return null;
+}
+
+$games = new Games();
+$argv = $_SERVER['argv'];
+$cmd = $argv[1] ?? 'help';
+
+try {
+    switch ($cmd) {
+        case 'list':
+            $stats = $games->stats();
+            echo "id        when                 turns  win  len  survived  opponents\n";
+            $since = $argv[3] ?? '';
+            foreach ($games->ids((int) ($argv[2] ?? 20)) as $id) {
+                $turns = $games->turns($id);
+                if ($since !== '' && $turns !== [] && \strcmp(\substr($turns[0]->recorded, 0, 19), \str_replace('T', ' ', $since)) < 0) {
+                    continue;
+                }
+                $s = $stats[$id] ?? null;
+                \printf(
+                    "%s  %s  %5d  %-3s  %3s  %8s  %s\n",
+                    \substr($id, 0, 8),
+                    \substr($turns[0]->recorded ?? '', 0, 19),
+                    $turns === [] ? 0 : $turns[\array_key_last($turns)]->turn,
+                    $s === null ? '?' : ($s['win'] ? 'yes' : 'no'),
+                    $s['length'] ?? '?',
+                    $s['survived'] ?? '?',
+                    $turns === [] ? '' : opponents($turns[0]->state),
+                );
+            }
+            break;
+
+        case 'game':
+            $id = $games->resolve($argv[2] ?? throw new RuntimeException('game <id>'));
+            $turns = $games->turns($id);
+            $first = $turns[0];
+            $last = $turns[\array_key_last($turns)];
+            $g = $first->state->game;
+            echo "game $id\n";
+            echo "ruleset {$g->ruleset->name}, timeout {$g->timeout} ms, {$first->state->board->width}x{$first->state->board->height}\n";
+            echo 'opponents: ' . opponents($first->state) . "\n";
+            echo "turns: {$last->turn}, events: " . \count($turns) . "\n";
+            echo 'at the end we were ' . (alive($last->state) ? 'alive' : 'gone')
+                . "; health {$last->state->you->health}, length {$last->state->you->length}\n";
+            $i = fatal($turns);
+            if ($i !== null) {
+                echo "fatal turn {$turns[$i]->turn}: " . happened($turns[$i], $turns[$i + 1]) . "\n";
+            }
+            $nudges = \count(\array_filter($turns, static fn(Replayed $t): bool => \str_starts_with((string) $t->move, 'nudge')));
+            if ($nudges > 0) {
+                echo "$nudges nudged moves\n";
+            }
+            $low = \array_values(\array_filter($turns, static fn(Replayed $t): bool => $t->state->you->health <= 20));
+            if ($low !== []) {
+                echo "health at or under 20 on turns {$low[0]->turn}..{$low[\array_key_last($low)]->turn} (" . \count($low) . " turns)\n";
+            }
+            echo "use `turn <id> <n>` for a board, `last <id>` for the ending\n";
+            break;
+
+        case 'turn':
+            $id = $games->resolve($argv[2] ?? throw new RuntimeException('turn <id> <n>'));
+            $n = (int) ($argv[3] ?? throw new RuntimeException('turn <id> <n>'));
+            $turns = $games->turns($id);
+            $i = \array_search($n, \array_map(static fn(Replayed $t): int => $t->turn, $turns), true);
+            if ($i === false) {
+                throw new RuntimeException("no turn $n; the game has turns 0.." . $turns[\array_key_last($turns)]->turn);
+            }
+            echo "turn $n\n" . board($turns[$i]->state) . "\n" . legend($turns[$i]->state) . "\n"
+                . happened($turns[$i], $turns[$i + 1] ?? null) . "\n";
+            break;
+
+        case 'last':
+            $id = $games->resolve($argv[2] ?? throw new RuntimeException('last <id> [count]'));
+            $count = (int) ($argv[3] ?? 5);
+            $turns = $games->turns($id);
+            $from = \max(0, \count($turns) - $count);
+            for ($i = $from; $i < \count($turns); $i++) {
+                echo "turn {$turns[$i]->turn}\n" . board($turns[$i]->state) . "\n" . happened($turns[$i], $turns[$i + 1] ?? null) . "\n\n";
+            }
+            break;
+
+        case 'scenario':
+            $id = $games->resolve($argv[2] ?? throw new RuntimeException('scenario <id> <n> [move]'));
+            $n = (int) ($argv[3] ?? throw new RuntimeException('scenario <id> <n> [move]'));
+            $move = $argv[4] ?? null;
+            $turns = $games->turns($id);
+            $t = null;
+            foreach ($turns as $candidate) {
+                if ($candidate->turn === $n) {
+                    $t = $candidate;
+                }
+            }
+            if ($t === null) {
+                throw new RuntimeException("no turn $n");
+            }
+            $indented = \implode("\n", \array_map(static fn(string $l): string => '      ' . $l, \explode("\n", board($t->state))));
+            echo '  Scenario: game ' . \substr($id, 0, 8) . " turn $n\n    Given the board is:\n      \"\"\"\n$indented\n      \"\"\"\n"
+                . "    When the snake receives a \"/move\" request\n"
+                . ($move === null ? "    Then the snake moves <fill in>\n" : "    Then the snake moves \"$move\"\n");
+            break;
+
+        default:
+            echo \implode("\n", \array_slice(\file(__FILE__), 5, 11)) . "\n";
+            exit($cmd === 'help' ? 0 : 2);
+    }
+} catch (RuntimeException $e) {
+    \fwrite(\STDERR, $e->getMessage() . "\n");
+    exit(1);
+}

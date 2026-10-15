@@ -7,10 +7,9 @@ namespace BattleSnake\Tests\Behat;
 use Behat\Behat\Context\Context;
 use Behat\Gherkin\Node\PyStringNode;
 use BattleSnake\Core\Application;
-use BattleSnake\Core\ApplicationFactory;
 use BattleSnake\Domain\Direction;
 use BattleSnake\Tests\SnekSpec\Parser as SnekSpecParser;
-use Doctrine\DBAL\Schema\PrimaryKeyConstraint;
+use BattleSnake\Tests\Support\TestSchema;
 use Laminas\Diactoros\ServerRequest;
 use Laminas\Diactoros\StreamFactory;
 use PHPUnit\Framework\Assert;
@@ -35,42 +34,9 @@ final class FeatureContext implements Context
         // Behat treats those as fatal. Drop once upstream is patched.
         error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 
-        $this->app = (new ApplicationFactory())->make([
-            // Force in-memory SQLite for Behat runs; migrations are applied below.
-            [
-                \BattleSnake\Core\Config::class => \DI\factory(static fn() => new \BattleSnake\Core\Config('sqlite:///:memory:')),
-            ],
-        ]);
+        $this->app = TestSchema::application();
 
         $this->gameId = Uuid::uuid4()->toString();
-        $this->migrate();
-    }
-
-    private function migrate(): void
-    {
-        $conn = $this->app->getContainer()->get(\Doctrine\DBAL\Connection::class);
-        $platform = $conn->getDatabasePlatform();
-
-        $messages = new \Doctrine\DBAL\Schema\Schema();
-        $t1 = $messages->createTable('domain_messages');
-        $t1->addColumn('id', 'integer', ['autoincrement' => true, 'notnull' => true]);
-        $t1->addColumn('event_id', 'string', ['length' => 36, 'notnull' => true]);
-        $t1->addColumn('aggregate_root_id', 'string', ['length' => 36, 'notnull' => true]);
-        $t1->addColumn('version', 'integer', ['notnull' => true]);
-        $t1->addColumn('payload', 'text', ['notnull' => true]);
-        $t1->addPrimaryKeyConstraint(PrimaryKeyConstraint::editor()->setUnquotedColumnNames('id')->create());
-        $t1->addUniqueIndex(['aggregate_root_id', 'version']);
-
-        $t2 = $messages->createTable('game_stats');
-        $t2->addColumn('aggregate_id', 'string', ['length' => 36, 'notnull' => true]);
-        $t2->addColumn('win', 'boolean');
-        $t2->addColumn('length', 'integer');
-        $t2->addColumn('survived', 'integer');
-        $t2->addPrimaryKeyConstraint(PrimaryKeyConstraint::editor()->setUnquotedColumnNames('aggregate_id')->create());
-
-        foreach ($messages->toSql($platform) as $sql) {
-            $conn->executeStatement($sql);
-        }
     }
 
     /**

@@ -18,7 +18,8 @@ abstract class AbstractHandler implements RequestHandlerInterface
     {
         $response = $this->response_factory->createResponse($status)
             ->withHeader('Content-Type', 'application/json');
-        $response->getBody()->write((string) \json_encode($data));
+        // An empty payload is still a JSON object (the spec says `{}`), never `[]`.
+        $response->getBody()->write($data === [] ? '{}' : (string) \json_encode($data));
         return $response;
     }
 }

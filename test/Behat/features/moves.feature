@@ -19,6 +19,6 @@ Feature: Snake responds to /move with a valid direction
       -----------
       """
     When the snake receives a "/start" request
-    Then the response status is 204
+    Then the response status is 200
     When the snake receives a "/move" request
     Then the snake moves in some valid direction

@@ -35,6 +35,7 @@ class EndHandler extends AbstractHandler
         }
 
         $this->games->persist($game);
-        return $this->response_factory->createResponse(204);
+        // The engine ignores this body; open-api.yaml promises 200 with an empty object.
+        return $this->createJsonResponse([]);
     }
 }

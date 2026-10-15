@@ -1,4 +1,4 @@
-# techbash-snake (tjlytle/techbash-snake)
+# techbash-snake-overnight (tjlytle/techbash-snake-overnight)
 
 The Battlesnake PHP platform (a copy of `tjlytle/battle-snake-framework`) as used live in the
 TechBash 2026 talk "BattleSnake in 50 minutes". The map of the code is
@@ -6,13 +6,12 @@ TechBash 2026 talk "BattleSnake in 50 minutes". The map of the code is
 
 ## Working here
 
-- Stack: `make build && make install && make migrate && make up` (http://localhost:8088).
+- Stack: `make build && make install && make migrate && make up` (http://localhost:8089).
   Tests: `make test` (PHPUnit, including the API-spec compliance test) and `make behat`
   (ASCII-board scenarios); both run inside `docker compose run`, so they need the image but
   not a running stack. `make stan` and `make cs` fail on `main` already and are not gates.
-- The demo snake is served from this checkout on :8088 and is public at
-  https://snake.lytlelabs.com through a cloudflared tunnel. Never `make down` it during the
-  talk. After a merge, `git pull` here so the public snake runs the new code.
+- This snake is served from this checkout on :8089 (`.env` sets PORT; not public). After a
+  merge the QA stage pulls here so it serves the new code.
 - A snake is one `Strategy` class under `src/Snake/`, bound in `src/Core/di/snake.php`, with a
   Behat scenario in `test/Behat/features/`. Do not touch the event-sourcing wiring, Docker,
   Composer or the public API for a snake change.
@@ -80,13 +79,12 @@ build stage needs as acceptance criteria. A session plays its own games with `bi
 against the snakes in `pipeline/opponents.md`, stops at its deadline, and systemd starts the
 next one. The two lines below are read by the prompts:
 
-Merge: human
-Promote ideas: no
+Merge: auto
+Promote ideas: yes
 
 `Merge: auto` lets the QA stage merge a green PR as builder and pull this checkout, so the
 running snake serves the new code. `Promote ideas: yes` lets the analyst move its own best
-lesson to `stage:in-progress` while fewer than two issues are in flight. Both stay off in the
-demo repo; the overnight repo turns them on.
+lesson to `stage:in-progress` while fewer than two issues are in flight. Both are on here, off in the demo repo.
 
 ## Keeping it running
 

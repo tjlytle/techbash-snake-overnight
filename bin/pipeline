@@ -33,7 +33,7 @@
 # the stage stops with that denial in its log, which is the signal to widen the list.
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-REPO=${PIPELINE_REPO:-tjlytle/techbash-snake}
+REPO=${PIPELINE_REPO:-tjlytle/techbash-snake-overnight}
 INTERVAL=${PIPELINE_INTERVAL:-30}
 MODEL=${PIPELINE_MODEL:-opus}
 MAX_TRIES=${PIPELINE_MAX_TRIES:-3}

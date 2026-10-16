@@ -52,6 +52,17 @@ ALLOW=(
 
 say() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 
+# The session's stream, as lines a room can read: what it says, and each tool call in a few words.
+live() {
+  jq -r --unbuffered '
+    if .type == "assistant" then
+      .message.content[]? | if .type == "text" then .text
+        elif .type == "tool_use" then "▶ " + .name + ": " + ((.input.description // .input.command // .input.file_path // .input.pattern // .input.prompt // "") | tostring | .[0:160])
+        else empty end
+    elif .type == "result" then "■ " + (.subtype // "done") + " after " + ((.num_turns // 0) | tostring) + " turns"
+    else empty end' 2>/dev/null || cat
+}
+
 labels_of() { gh issue view "$1" -R "$REPO" --json labels --jq '[.labels[].name] | join(",")'; }
 stage_of()  { tr ',' '\n' <<<"$1" | grep '^stage:' | head -1; }
 label()     { gh-as - issue edit "$1" -R "$REPO" "$2" "$3" >/dev/null 2>&1; }   # label <#> --add-label|--remove-label <name>
@@ -110,7 +121,7 @@ run_stage() {   # run_stage <#> <title> <stage-label> <prompt>: start a session 
   (
     cd "$ROOT" && claude -p "$(sed "s/{N}/$n/g" "$ROOT/pipeline/$prompt.md")" \
       --model "$MODEL" --permission-mode acceptEdits --allowedTools "${ALLOW[@]}" \
-      --output-format text 2>&1 | sed -u "s/^/  #$n │ /" | tee -a "$LOG/$n.log"
+      --output-format stream-json --verbose 2>&1 | tee -a "$LOG/$n.jsonl" | live | sed -u "s/^/  #$n │ /" | tee -a "$LOG/$n.log"
     say "#$n  $prompt session ended" | tee -a "$LOG/$n.log"
     finish "$n"
   ) &

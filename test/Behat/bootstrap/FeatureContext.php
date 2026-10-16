@@ -92,6 +92,20 @@ final class FeatureContext implements Context
     }
 
     /**
+     * @Then the snake does not move :direction
+     */
+    public function theSnakeDoesNotMove(string $direction): void
+    {
+        $body = (string) $this->response?->getBody();
+        $data = \json_decode($body, true);
+        Assert::assertIsArray($data);
+        Assert::assertArrayHasKey('move', $data);
+        $refused = Direction::tryFrom(\strtolower($direction));
+        Assert::assertNotNull($refused, "Unknown direction: $direction");
+        Assert::assertNotSame($refused->value, $data['move']);
+    }
+
+    /**
      * @Then the snake moves in some valid direction
      */
     public function theSnakeMovesAnyDirection(): void

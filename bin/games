@@ -160,6 +160,14 @@ function board(GameState $state): string
             $c = $segments[$k];
             $grid[$c->y][$c->x] = $k === 0 ? $head : ($k === $last ? $tail : $body);
         }
+        // After eating, the tail shares a square with the segment before it; the parser needs
+        // to see the tail letter there, not the body letter that was drawn over it.
+        if ($last > 0) {
+            $t = $segments[$last];
+            if ($grid[$t->y][$t->x] === $body) {
+                $grid[$t->y][$t->x] = $tail;
+            }
+        }
     }
     $lines = \array_map(static fn(array $row): string => \implode('', $row), \array_reverse($grid));
     return \implode("\n", $lines);

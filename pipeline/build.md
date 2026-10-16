@@ -22,13 +22,13 @@ through `gh-as builder …` (commits `gh-as builder --git commit`, pushes
    PR body.
 5. **Test first.** Write the tests before the code: a Behat board scenario in
    `test/Behat/features/` for snake behaviour (the composed snake), and a PHPUnit test under
-   `test/Unit/` for the strategy alone. Run them once, then make the smallest change that
-   turns them green, then run the whole suite: `make test` and `make behat`. Both must be
-   green before you commit. A scenario does not have to be red first: the composed snake
-   falls back to a random move, so on a board with several safe moves a scenario can pass by
-   luck before the strategy exists. That is fine; the scenario is the spec. Do not rerun
-   Behat to force a failure. The deterministic proof is the unit test, which drives the
-   strategy with a fixed preferred move.
+   `test/Unit/` for the strategy alone. Run them, see them fail, then make the smallest
+   change that turns them green, then run the whole suite: `make test` and `make behat`.
+   Both must be green before you commit. One exception to red first: when you can see the
+   test could pass by chance without your change (the composed snake falls back to a random
+   move, so a scenario on a board with several safe moves is a coin flip until the strategy
+   exists), say so and move on. Do not rerun Behat hunting for a failure. The unit test,
+   which drives the strategy with a fixed preferred move, is the deterministic proof.
 6. **Commit and push** as builder, one commit per logical step, messages in plain words.
 7. **Pull request.** Open a draft PR as builder (or push to the existing one) with
    `Closes #{N}`, what changed in three lines, which board situations the tests cover, and

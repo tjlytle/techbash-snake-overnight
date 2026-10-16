@@ -45,14 +45,8 @@ mkdir -p "$LOG"
 for b in "$HOME"/.claude/plugins/cache/dev-flow/gh-personas/*/bin; do [ -d "$b" ] && PATH="$b:$PATH"; done
 export PATH
 
-ALLOW=(
-  "Read" "Edit" "Write" "MultiEdit" "Glob" "Grep" "Agent" "Skill" "TodoWrite"
-  "Bash(gh-as *)" "Bash(gh-personas *)" "Bash(gh *)" "Bash(git *)"
-  "Bash(bin/play *)" "Bash(bin/play)" "Bash(battlesnake *)" "Bash(bin/games *)" "Bash(make *)" "Bash(docker compose *)" "Bash(docker tag *)" "Bash(docker images *)" "Bash(docker ps *)" "Bash(docker logs *)"
-  "Bash(ls *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(sed *)" "Bash(grep *)"
-  "Bash(find *)" "Bash(wc *)" "Bash(jq *)" "Bash(diff *)" "Bash(mkdir *)" "Bash(cp *)"
-  "Bash(cd *)" "Bash(pwd)" "Bash(echo *)" "Bash(date *)" "Bash(test *)" "Bash(true)" "Bash(sleep *)"
-)
+# The tool allow list lives in pipeline/allow.txt and is read at every launch.
+allow_list() { grep -v '^#' "$ROOT/pipeline/allow.txt" | grep -v '^[[:space:]]*$'; }
 
 say() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 
@@ -123,6 +117,7 @@ run_stage() {   # run_stage <#> <title> <stage-label> <prompt>: start a session 
   mkdir "$mark" 2>/dev/null || { say "#$n already running"; return 0; }
   echo "$stage" > "$mark/stage"
   label "$n" --add-label working
+  local ALLOW; mapfile -t ALLOW < <(allow_list)
   say "#$n  $title  → $prompt ($MODEL)" | tee -a "$LOG/$n.log"
   (
     cd "$ROOT" && claude -p "$(sed "s/{N}/$n/g" "$ROOT/pipeline/$prompt.md")" \

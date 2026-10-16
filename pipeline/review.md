@@ -8,7 +8,8 @@ restyle, and you do not build.
 1. Find the PR: `gh pr list --search "{N} in:body" --state open` (it says `Closes #{N}`).
    Read the issue (`gh issue view {N} --comments`), the diff (`gh pr diff <pr>`) and the PR
    body.
-2. Judge three things only: does the change do what the issue's acceptance criteria ask,
+2. Read the issue's **Implementation Plan** comment too: the PR should match its shape, and any
+   departure should be explained in the PR body. Then judge three things only: does the change do what the issue's acceptance criteria ask,
    could it break the snake (the Battlesnake API contract in `open-api.yaml`, the move
    loop, the event-sourcing wiring), and is the behaviour covered by a test that would fail
    without the change.

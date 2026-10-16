@@ -4,7 +4,9 @@ which means it is yours to build now. Read `CLAUDE.md` and
 through `gh-as builder …` (commits `gh-as builder --git commit`, pushes
 `gh-as builder --push <branch>`, PRs and labels `gh-as builder …`).
 
-1. **Read the trail.** `gh issue view {N} --comments`. If the issue came back from review or
+1. **Read the trail.** `gh issue view {N} --comments`. The architect's **Implementation Plan**
+   comment is the contract: its situations are your scenarios and its shape is where the class
+   goes. Depart from it only with a reason, stated in the PR. If the issue came back from review or
    QA, the newest reviewer or qa comment says exactly what to fix, and the branch and PR
    already exist: resume them. If it has come back twice already, stop and park (step 8).
 2. **Is it buildable?** Apply the "Vague asks" rule in CLAUDE.md. No testable acceptance

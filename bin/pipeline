@@ -9,7 +9,8 @@
 # Stages are labels. The loop decides nothing about the work; it maps a label to a
 # prompt file and runs that prompt in a headless Claude Code session for the issue:
 #
-#   stage:todo          backlog, untouched
+#   stage:todo          pipeline/plan.md    (architect: post an Implementation Plan, then planned)
+#   stage:planned       plan posted; a person moves it to in-progress when they agree
 #   stage:in-progress   pipeline/build.md   (builder: worktree, test, code, draft PR)
 #   stage:review        pipeline/review.md  (reviewer: read the PR, approve or send back)
 #   stage:qa            pipeline/qa.md      (qa: run every suite, mark ready or send back)
@@ -69,6 +70,7 @@ label()     { gh-as - issue edit "$1" -R "$REPO" "$2" "$3" >/dev/null 2>&1; }   
 
 prompt_for() {   # prompt_for <stage> → prompt file name, or empty when nothing is due
   case "$1" in
+    stage:todo)        echo plan ;;
     stage:in-progress) echo build ;;
     stage:review)      echo review ;;
     stage:qa)          echo qa ;;

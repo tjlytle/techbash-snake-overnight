@@ -3,8 +3,8 @@ approved its PR and your job is to prove we did not break the snake. Read `CLAUD
 Every GitHub write goes through `gh-as qa …`.
 
 1. Find the PR (`gh pr list --search "{N} in:body" --state open`) and its worktree
-   (`git worktree list`, usually `../<this directory's name>-issue-{N}`). If there is none, add
-   one from the PR branch: `git fetch origin && git worktree add ../$(basename "$PWD")-issue-{N} origin/<branch>`.
+   (`git worktree list`, usually `.worktrees/<this directory's name>-issue-{N}`). If there is none,
+   add one from the PR branch: `git fetch origin && git worktree add .worktrees/$(basename "$PWD")-issue-{N} origin/<branch>`.
    Make sure the branch is current (`git pull --ff-only` in the worktree). Run the suites
    with `COMPOSE_PROJECT_NAME=$(basename "$(git rev-parse --show-toplevel)")` exported, the
    main checkout's name, so the worktree reuses its image instead of building another.

@@ -40,6 +40,10 @@ MAX_TRIES=${PIPELINE_MAX_TRIES:-3}
 HUMAN=${PIPELINE_HUMAN:-tjlytle}
 LOG="$ROOT/var/pipeline"
 mkdir -p "$LOG"
+# The headless session inherits this PATH: gh-as, gh-personas and bot-token come from the
+# gh-personas plugin, which interactive sessions put on PATH themselves.
+for b in "$HOME"/.claude/plugins/cache/dev-flow/gh-personas/*/bin; do [ -d "$b" ] && PATH="$b:$PATH"; done
+export PATH
 
 ALLOW=(
   "Read" "Edit" "Write" "MultiEdit" "Glob" "Grep" "Agent" "Skill" "TodoWrite"

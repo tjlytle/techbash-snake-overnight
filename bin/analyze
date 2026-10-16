@@ -16,6 +16,8 @@ MODEL=${PIPELINE_MODEL:-opus}
 LOG="$ROOT/var/pipeline"
 MARK="$LOG/analyst"
 mkdir -p "$LOG"
+for b in "$HOME"/.claude/plugins/cache/dev-flow/gh-personas/*/bin; do [ -d "$b" ] && PATH="$b:$PATH"; done
+export PATH
 
 ALLOW=(
   "Read" "Glob" "Grep" "Write" "TodoWrite"

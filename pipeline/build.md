@@ -10,8 +10,9 @@ through `gh-as builder …` (commits `gh-as builder --git commit`, pushes
 2. **Is it buildable?** Apply the "Vague asks" rule in CLAUDE.md. No testable acceptance
    criteria, or an ask like "make it the best": do not build. Post the engineer's reply from
    that rule as a comment, set `stage:parked`, and stop.
-3. **Worktree.** `git fetch origin && git worktree add ../$(basename "$PWD")-issue-{N} -b issue-{N}-<slug> origin/main --no-track`
-   (the worktree is named after this checkout's directory, so two checkouts never share one)
+3. **Worktree.** `git fetch origin && git worktree add .worktrees/$(basename "$PWD")-issue-{N} -b issue-{N}-<slug> origin/main --no-track`
+   (inside this checkout, under the git-ignored `.worktrees/`, named after this directory so two
+   checkouts never share one; `cd` into it for everything that follows)
    (or reuse the existing one from `git worktree list`). In the worktree, export
    `COMPOSE_PROJECT_NAME=<the main checkout's directory name>` before any `make` so it reuses
    the main checkout's image; then `make install` once (vendor is per worktree).

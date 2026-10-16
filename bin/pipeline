@@ -48,7 +48,7 @@ export PATH
 ALLOW=(
   "Read" "Edit" "Write" "MultiEdit" "Glob" "Grep" "Agent" "Skill" "TodoWrite"
   "Bash(gh-as *)" "Bash(gh-personas *)" "Bash(gh *)" "Bash(git *)"
-  "Bash(make *)" "Bash(docker compose *)" "Bash(docker tag *)" "Bash(docker images *)" "Bash(docker ps *)" "Bash(docker logs *)"
+  "Bash(bin/play *)" "Bash(bin/play)" "Bash(bin/games *)" "Bash(make *)" "Bash(docker compose *)" "Bash(docker tag *)" "Bash(docker images *)" "Bash(docker ps *)" "Bash(docker logs *)"
   "Bash(ls *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(sed *)" "Bash(grep *)"
   "Bash(find *)" "Bash(wc *)" "Bash(jq *)" "Bash(diff *)" "Bash(mkdir *)" "Bash(cp *)"
   "Bash(cd *)" "Bash(pwd)" "Bash(echo *)" "Bash(date *)" "Bash(test *)" "Bash(true)" "Bash(sleep *)"

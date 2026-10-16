@@ -29,6 +29,10 @@
 # with the log tail and @tjlytle, so a stage that keeps dying does not loop forever.
 # A `working` label with no live session on this machine is stale and is cleared.
 #
+# The loop also deploys: each pass, when origin/main has moved past this checkout, it
+# fast-forwards, installs and migrates. The code is bind-mounted into the running snake, so a
+# merge on GitHub is live here within one pass, whoever clicked the button.
+#
 # The headless session gets the tool allow list below and nothing more: file edits are
 # accepted, and only the listed commands run. A command outside the list is denied and
 # the stage stops with that denial in its log, which is the signal to widen the list.
@@ -158,8 +162,19 @@ due() {   # due <#> <labels-csv> → prompt to run, or empty
   echo "$stage $prompt"
 }
 
+deploy() {   # bring this checkout, and so the running snake, up to date with origin/main
+  git -C "$ROOT" fetch -q origin main 2>/dev/null || return 0
+  local behind; behind=$(git -C "$ROOT" rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+  [ "${behind:-0}" -gt 0 ] || return 0
+  if [ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]; then say "deploy: origin/main is $behind ahead but the checkout has local changes; not pulling"; return 0; fi
+  say "deploy: origin/main is $behind commit(s) ahead; pulling"
+  (cd "$ROOT" && git pull -q --ff-only origin main && make -s install >/dev/null 2>&1 && make -s migrate >/dev/null 2>&1) \
+    && say "deploy: now at $(git -C "$ROOT" log -1 --format='%h %s')" || say "deploy: pull or install failed; see git status"
+}
+
 pass() {   # one sweep over the open issues
   reap
+  deploy
   "$ROOT/bin/board" sync 2>/dev/null | sed 's/^/board: /'   # the board follows the labels, and a dragged card moves its label
   while IFS=$'\t' read -r n title labels; do
     [ -z "$n" ] && continue

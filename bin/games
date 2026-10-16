@@ -149,8 +149,10 @@ function board(GameState $state): string
     foreach ($state->board->hazards as $c) {
         $grid[$c->y][$c->x] = '/';
     }
+    // Once we are off the board, the others keep their letters (S/t/T stays ours).
+    $offset = alive($state) ? 0 : 1;
     foreach (ordered($state) as $i => $snake) {
-        [$head, $tail, $body] = LETTERS[\min($i, \count(LETTERS) - 1)];
+        [$head, $tail, $body] = LETTERS[\min($i + $offset, \count(LETTERS) - 1)];
         $segments = $snake->body->coordinates;
         $last = \count($segments) - 1;
         // Tail first, head last, so the head wins on stacked cells (turn 0 stacks all three).
@@ -166,8 +168,9 @@ function board(GameState $state): string
 function legend(GameState $state): string
 {
     $lines = [];
+    $offset = alive($state) ? 0 : 1;
     foreach (ordered($state) as $i => $snake) {
-        [$head, $tail, $body] = LETTERS[\min($i, \count(LETTERS) - 1)];
+        [$head, $tail, $body] = LETTERS[\min($i + $offset, \count(LETTERS) - 1)];
         $who = $snake->id === $state->you->id ? 'us' : $snake->name;
         $lines[] = "  $head/$body/$tail: $who, length {$snake->length}, health {$snake->health}";
     }

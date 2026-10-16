@@ -38,7 +38,7 @@ create() {
 
 # The board's items with their Status and when they last changed, one JSON line each.
 board_items() {   # board_items <project node id>
-  gh api graphql -f id="$1" -f query='query($id: ID!) { node(id: $id) { ... on ProjectV2 { items(first: 200) { nodes { id updatedAt
+  gh api graphql -f id="$1" -f query='query($id: ID!) { node(id: $id) { ... on ProjectV2 { items(first: 100) { nodes { id updatedAt
     content { ... on Issue { number } }
     status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name updatedAt } } } } } } }' \
     --jq '.data.node.items.nodes[] | select(.content.number != null) | {id, number: .content.number, status: (.status.name // ""), at: (.status.updatedAt // .updatedAt)}' 2>/dev/null

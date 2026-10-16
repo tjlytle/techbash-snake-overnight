@@ -27,7 +27,9 @@ Every GitHub write goes through `gh-as ops …`.
 3. **File.** One `idea` issue per lesson, not per game, as ops, with the `idea` label:
    the game id and turn and what happened in one sentence; the board as a Behat scenario from
    `scenario <id> <n> "<the move we should have made>"` (one or two scenarios); why that move,
-   in plain snake sense; the rule to add, in one sentence. If the same rule already has an
+   in plain snake sense; the rule to add, in one sentence, phrased as a strategy the snake
+   could gain (`HuntFoodWhenHungry`, `DodgeLongerHeads`), since the builder adds strategies
+   and composes them rather than rewriting one (see "Strategies" in CLAUDE.md). If the same rule already has an
    open issue, comment on it with the new game and turn instead. Before filing, check
    `gh issue list --search "game <id8>" --state all` so a game is never filed twice.
 4. **Promote, if allowed.** When `## Analyst` says `Promote ideas: yes`, move your best

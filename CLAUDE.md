@@ -16,6 +16,31 @@ TechBash 2026 talk "BattleSnake in 50 minutes". The map of the code is
   Behat scenario in `test/Behat/features/`. Do not touch the event-sourcing wiring, Docker,
   Composer or the public API for a snake change.
 
+## Strategies: compose, never replace
+
+The snake that plays is a **composition** of small strategies, not one class that keeps
+growing. This is the design the talk is about, so every change keeps to it:
+
+- A behaviour is its own `Strategy` class under `src/Snake/`, named for what it does
+  (`HuntFoodWhenHungry`, `AvoidDeadEnds`, `DodgeLongerHeads`), one concern each, built on the
+  `MoveClassifier` labels, with its own unit test. A departure in behaviour is a **new** class;
+  an existing strategy is only edited to fix a bug in what it already claims to do.
+- The playing snake is assembled from the platform's combinators: aggregates (`Majority`,
+  `Scored`, `FirstSafe`, `Conditional`) and decorators (`Fallback`, `Nudgeable`). `Conditional`
+  switches strategies by the phase of the game (turn, health, length, snakes left), `Scored`
+  weighs votes, `FirstSafe` orders preferences, `Fallback` catches the rest. Complex behaviour
+  comes from the composition, never from one strategy knowing everything.
+- The composition lives in one place, `src/Core/di/snake.php` (a `TechBashSnake` factory
+  there if it outgrows a few lines), and that is the only wiring that changes when a strategy
+  is added. Say in the PR where the new strategy slots in and why (which condition, which
+  weight, which order).
+- A superseded strategy is left in place and unwired, with a line in the composition saying
+  what replaced it. Nothing is deleted during the talk.
+- An issue that says "the snake should X" is answered by three questions before code: which
+  existing strategy already covers part of X, what new strategy X needs, and where in the
+  composition it goes. The Behat scenario tests the composed snake; the unit test tests the
+  strategy alone.
+
 ## How work gets done here
 
 There are two ways to build something, and the words Tim uses pick one.

@@ -48,7 +48,7 @@ export PATH
 ALLOW=(
   "Read" "Edit" "Write" "MultiEdit" "Glob" "Grep" "Agent" "Skill" "TodoWrite"
   "Bash(gh-as *)" "Bash(gh-personas *)" "Bash(gh *)" "Bash(git *)"
-  "Bash(make *)" "Bash(docker compose *)"
+  "Bash(make *)" "Bash(docker compose *)" "Bash(docker tag *)" "Bash(docker images *)" "Bash(docker ps *)" "Bash(docker logs *)"
   "Bash(ls *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(sed *)" "Bash(grep *)"
   "Bash(find *)" "Bash(wc *)" "Bash(jq *)" "Bash(diff *)" "Bash(mkdir *)" "Bash(cp *)"
   "Bash(cd *)" "Bash(pwd)" "Bash(echo *)" "Bash(date *)" "Bash(test *)" "Bash(true)" "Bash(sleep *)"
@@ -58,13 +58,15 @@ say() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 
 # The session's stream, as lines a room can read: what it says, and each tool call in a few words.
 live() {
-  jq -r --unbuffered '
-    if .type == "assistant" then
+  jq -R -r --unbuffered '
+    (. as $line | try fromjson catch {type: "raw", text: $line}) |
+    if .type == "raw" then (.text | select(test("Permission (allow|deny) rule") | not))
+    elif .type == "assistant" then
       .message.content[]? | if .type == "text" then .text
         elif .type == "tool_use" then "▶ " + .name + ": " + ((.input.description // .input.command // .input.file_path // .input.pattern // .input.prompt // "") | tostring | .[0:160])
         else empty end
     elif .type == "result" then "■ " + (.subtype // "done") + " after " + ((.num_turns // 0) | tostring) + " turns"
-    else empty end' 2>/dev/null || cat
+    else empty end'
 }
 
 labels_of() { gh issue view "$1" -R "$REPO" --json labels --jq '[.labels[].name] | join(",")'; }

@@ -20,10 +20,15 @@ through `gh-as builder …` (commits `gh-as builder --git commit`, pushes
    behaviour is a new class under `src/Snake/`; the change to existing code is the composition
    in `src/Core/di/snake.php`. Name the class, the combinator it slots into and why, in the
    PR body.
-5. **Test first.** Write the failing test: a Behat board scenario in `test/Behat/features/`
-   for snake behaviour, a PHPUnit test under `test/Unit/` for anything else. Run it, see it
-   fail, then make the smallest change that turns it green. Then run the whole suite:
-   `make test` and `make behat`. Both must be green before you commit.
+5. **Test first.** Write the tests before the code: a Behat board scenario in
+   `test/Behat/features/` for snake behaviour (the composed snake), and a PHPUnit test under
+   `test/Unit/` for the strategy alone. Run them once, then make the smallest change that
+   turns them green, then run the whole suite: `make test` and `make behat`. Both must be
+   green before you commit. A scenario does not have to be red first: the composed snake
+   falls back to a random move, so on a board with several safe moves a scenario can pass by
+   luck before the strategy exists. That is fine; the scenario is the spec. Do not rerun
+   Behat to force a failure. The deterministic proof is the unit test, which drives the
+   strategy with a fixed preferred move.
 6. **Commit and push** as builder, one commit per logical step, messages in plain words.
 7. **Pull request.** Open a draft PR as builder (or push to the existing one) with
    `Closes #{N}`, what changed in three lines, which board situations the tests cover, and

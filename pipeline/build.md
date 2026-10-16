@@ -36,7 +36,8 @@ through `gh-as builder …` (commits `gh-as builder --git commit`, pushes
    `gh-as builder issue edit {N} --remove-label stage:in-progress --add-label stage:review`
    and leave one short comment on the issue with the PR link.
 8. **Parking.** When you cannot proceed without a decision, or the work would need to change
-   the event-sourcing wiring, Docker, Composer or the public API: do not guess. Set
+   the event-sourcing wiring, Docker, Composer or the public API and the issue does not say it
+   is platform work that may do so: do not guess. Set
    `stage:parked`, post one comment with one question, the options and your recommendation,
    and `@tjlytle` in it. Then stop.
 

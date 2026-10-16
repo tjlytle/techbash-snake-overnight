@@ -43,17 +43,20 @@ growing. This is the design the talk is about, so every change keeps to it:
 
 ## How work gets done here
 
-There are two ways to build something, and the words Tim uses pick one.
+There are two ways to build something. Building it here is the default; the pipeline only
+runs when Tim says so.
 
-**"Fast track it"** means build it end to end in this session, with the human in the loop:
-use the harness (`/build-snake <idea>` for a snake behaviour, superpowers' brainstorming
+**Default, and "fast track it"**: build it end to end in this session, with the human in the
+loop: use the harness (`/build-snake <idea>` for a snake behaviour, superpowers' brainstorming
 and planning or `/build` for anything bigger), ask the questions those skills ask, write the
 test first, run the suites, and open the PR as `builder`. Nothing goes through the pipeline.
 
-**"SDLC"**, "use the pipeline", or no instruction at all means the pipeline does the work:
-frame the ask as an issue as `advocate` (problem, context, acceptance criteria as board
-situations where possible), label it `stage:in-progress`, and stop. Do not build it here.
-The loop in `bin/pipeline` takes it from there.
+**"SDLC"** or "use the pipeline", said explicitly, means the pipeline does the work: frame the
+ask as an issue as `advocate` (problem, context, acceptance criteria as board situations where
+possible), label it `stage:todo`, and stop. Do not build it here, and do not skip the plan:
+`stage:todo` is where the architect picks it up and posts an Implementation Plan before anyone
+builds. Never label a new issue `stage:in-progress` yourself. The loop in `bin/pipeline` takes
+it from there.
 
 **Vague asks.** When the ask has no testable acceptance criteria and no constraints, such as
 "build the best Battlesnake", "make it smarter" or "make it win", do not build, do not

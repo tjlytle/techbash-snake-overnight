@@ -9,7 +9,8 @@
 #   bin/board url        print the board's URL
 #
 # Labels are what the bots read (an App cannot see a Projects board); the board is for people.
-# Everything here runs under the user's own auth (gh-as -), because only a user can own a board.
+# Board reads and writes run under the user's own auth (gh-as -), because only a user can own a board;
+# the one label write (a dragged card moving its issue) goes out as ops, like every other pipeline label.
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 REPO=${PIPELINE_REPO:-$(cd "$ROOT" && gh repo view --json nameWithOwner --jq .nameWithOwner)}
@@ -72,7 +73,7 @@ sync() {
     if [ -n "$have" ] && [ "$state" = OPEN ] && [ -n "$at" ] && [[ "$at" > "$(label_time "$n")" ]]; then
       local new; new=$(column_to_stage "$have")
       if [ -n "$new" ] && [ "$new" != "$stage" ]; then
-        gh-as - issue edit "$n" -R "$REPO" ${stage:+--remove-label "$stage"} --add-label "$new" >/dev/null && echo "#$n label ← board: $have"
+        gh-as ops issue edit "$n" -R "$REPO" ${stage:+--remove-label "$stage"} --add-label "$new" >/dev/null && echo "#$n label ← board: $have"
       fi
       continue
     fi

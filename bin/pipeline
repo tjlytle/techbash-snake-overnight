@@ -72,7 +72,7 @@ live() {
 
 labels_of() { gh issue view "$1" -R "$REPO" --json labels --jq '[.labels[].name] | join(",")'; }
 stage_of()  { tr ',' '\n' <<<"$1" | grep '^stage:' | head -1; }
-label()     { gh-as - issue edit "$1" -R "$REPO" "$2" "$3" >/dev/null 2>&1; }   # label <#> --add-label|--remove-label <name>
+label()     { gh-as ops issue edit "$1" -R "$REPO" "$2" "$3" >/dev/null 2>&1; }   # label <#> --add-label|--remove-label <name>  (the loop acts as ops, never as a person)
 
 prompt_for() {   # prompt_for <stage> → prompt file name, or empty when nothing is due
   case "$1" in

@@ -52,6 +52,6 @@ printf '%s analyst session (%s), deadline %s\n' "$(date +%H:%M:%S)" "$MODEL" "$D
 cd "$ROOT" && timeout --foreground "$(( (MINUTES + 10) * 60 ))" \
   claude -p "$PROMPT" --model "$MODEL" --permission-mode acceptEdits --allowedTools "${ALLOW[@]}" \
   --output-format stream-json --verbose 2>&1 | tee -a "$LOG/analyze.jsonl" \
-  | jq -r --unbuffered 'if .type == "assistant" then .message.content[]? | if .type == "text" then .text elif .type == "tool_use" then "▶ " + .name + ": " + ((.input.description // .input.command // .input.file_path // "") | tostring | .[0:160]) else empty end elif .type == "result" then "■ " + (.subtype // "done") else empty end' 2>/dev/null \
+  | jq -R -r --unbuffered '(. as $line | try fromjson catch {type: "raw", text: $line}) | if .type == "raw" then .text elif .type == "assistant" then .message.content[]? | if .type == "text" then .text elif .type == "tool_use" then "▶ " + .name + ": " + ((.input.description // .input.command // .input.file_path // "") | tostring | .[0:160]) else empty end elif .type == "result" then "■ " + (.subtype // "done") else empty end' \
   | sed -u 's/^/  analyst │ /' | tee -a "$LOG/analyze.log"
 printf '%s analyst session ended\n' "$(date +%H:%M:%S)" | tee -a "$LOG/analyze.log"

@@ -13,6 +13,7 @@ use BattleSnake\Domain\GameState;
 use BattleSnake\EventSourcing\Game;
 use BattleSnake\Snake\AvoidDeadEnds;
 use BattleSnake\Snake\DodgeLongerHeads;
+use BattleSnake\Snake\GrowWhenSafe;
 use BattleSnake\Snake\HuntFoodWhenHungry;
 use BattleSnake\Snake\RandomSnake;
 use BattleSnake\Strategy\Aggregate\Conditional;
@@ -28,7 +29,8 @@ return [
         ->constructorParameter('fallback', DI\get('TechBashSnake')),
 
     // The playing snake, picked by health:
-    //   40 and up  RandomSnake
+    //   40 and up  GrowWhenSafe: SAFE food within two squares that no longer (or equal)
+    //              head is as near to; RandomSnake when there is none
     //   15 to 39   HuntFoodWhenHungry, SAFE moves first
     //   under 15   HuntFoodWhenHungry, desperate: nearest food unless certain death
     // DodgeLongerHeads overrides the first two when a longer (or equal) head is within two
@@ -43,7 +45,7 @@ return [
                     $state->you->health < 40 => 1,
                     default => 0,
                 },
-                new DodgeLongerHeads($random, $classifier),
+                new DodgeLongerHeads(new GrowWhenSafe($random, $classifier), $classifier),
                 new DodgeLongerHeads(new HuntFoodWhenHungry($classifier), $classifier),
                 new HuntFoodWhenHungry($classifier, desperate: true),
             ),

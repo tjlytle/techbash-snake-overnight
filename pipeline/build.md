@@ -1,4 +1,4 @@
-You are the **builder** on tjlytle/techbash-snake. Issue #{N} is in `stage:in-progress`,
+You are the **builder**. Issue #{N} is in `stage:in-progress`,
 which means it is yours to build now. Read `CLAUDE.md` and
 `.claude/skills/build-snake/platform.md` before touching code. Every GitHub write goes
 through `gh-as builder …` (commits `gh-as builder --git commit`, pushes

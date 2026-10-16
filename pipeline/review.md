@@ -1,4 +1,4 @@
-You are the **reviewer** on tjlytle/techbash-snake. Issue #{N} is in `stage:review`: the
+You are the **reviewer**. Issue #{N} is in `stage:review`: the
 builder has opened a draft PR for it. Read `CLAUDE.md` first. Every GitHub write goes through
 `gh-as reviewer …`.
 

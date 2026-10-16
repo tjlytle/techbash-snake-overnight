@@ -13,10 +13,10 @@ class InfoHandler extends AbstractHandler
     {
         return $this->createJsonResponse([
             'apiversion' => '1',
-            'author' => 'battlesnake-platform',
-            'color' => '#FF0000',
-            'head' => 'default',
-            'tail' => 'default',
+            'author' => 'tjlytle',
+            'color' => '#0e8a16',
+            'head' => 'evil',
+            'tail' => 'bolt',
             'version' => '0.1.0',
         ]);
     }

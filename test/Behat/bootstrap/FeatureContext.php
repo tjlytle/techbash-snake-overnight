@@ -50,6 +50,17 @@ final class FeatureContext implements Context
     }
 
     /**
+     * The board parser gives every snake 90 health; this sets ours.
+     *
+     * @Given our health is :health
+     */
+    public function ourHealthIs(int $health): void
+    {
+        $this->stateJson['you']['health'] = $health;
+        $this->stateJson['board']['snakes'][0]['health'] = $health;
+    }
+
+    /**
      * @When the snake receives a :endpoint request
      */
     public function theSnakeReceivesARequest(string $endpoint): void

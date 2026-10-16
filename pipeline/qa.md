@@ -46,4 +46,4 @@ Every GitHub write goes through `gh-as qa …`.
 6. **Anything red, or a defective game:** send it back with the output in the comment:
    `gh-as qa issue edit {N} --remove-label stage:qa --add-label stage:in-progress`.
 
-Do not fix code. Do not change tests. Do not merge.
+Do not fix code. Do not change tests. Merge only on the green path of step 5, and only when CLAUDE.md says `Merge: auto`.

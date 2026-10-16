@@ -3,13 +3,16 @@
 #
 #   bin/play                          a solo game, 11x11, against our snake
 #   bin/play <name> <url> [...]       add opponents by name and URL (pairs; see pipeline/opponents.md)
-#   bin/play --browser ...            also open the board in a browser (presenting machine only)
+#   bin/play --browser ...            also open the board, always in the same dedicated browser window
+#                                     (a Chrome profile of its own, ~/.cache/snake-board; put that window on
+#                                     its own desktop and every game lands there as a new tab)
 #   bin/play --snake URL ...          play against a snake served elsewhere (a branch on another port)
 #
 # Uses the official rules CLI (`battlesnake`). SNAKE_URL is our snake (default
 # http://localhost:8088; the overnight checkout sets its own). Prints the result line and the
 # game id, which is what `make games ARGS="game <id>"` wants next. Log: var/pipeline/play.log
 set -u
+BOARD=
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 [ -f "$ROOT/.env" ] && . "$ROOT/.env"          # PORT=…, the same file docker compose reads
 SNAKE_URL=${SNAKE_URL:-http://localhost:${PORT:-8088}}
@@ -19,13 +22,20 @@ mkdir -p "$LOG"
 args=(play -W 11 -H 11 --name techbash --url "$SNAKE_URL" -t 1000 -d 0)
 while [ $# -gt 0 ]; do
   case "$1" in
-    --browser) args+=(--browser); shift ;;
+    --browser) args+=(--browser); BOARD=1; shift ;;
     --snake)   SNAKE_URL=$2; args[8]=$2; shift 2 ;;
     *) [ $# -ge 2 ] || { echo "opponents come in pairs: <name> <url>" >&2; exit 2; }
        args+=(--name "$1" --url "$2"); shift 2 ;;
   esac
 done
 
+if [ "${BOARD:-}" = 1 ]; then
+  # The rules CLI opens the board with xdg-open. Put a stand-in first on PATH that opens the URL in a
+  # dedicated Chrome profile, so the board always lands in that profile's one window.
+  B="$HOME/.cache/snake-board"; mkdir -p "$B/bin" "$B/profile"
+  printf '#!/usr/bin/env bash\nexec google-chrome --user-data-dir="%s/profile" --no-first-run "$1" >/dev/null 2>&1 &\n' "$B" > "$B/bin/xdg-open"
+  chmod +x "$B/bin/xdg-open"; export PATH="$B/bin:$PATH"
+fi
 printf '%s play %s\n' "$(date +%H:%M:%S)" "${args[*]}" | tee -a "$LOG/play.log"
 out=$(battlesnake "${args[@]}" 2>&1)
 echo "$out" | grep -iE "game completed|winner|draw|error|warn" | tail -n 4 | tee -a "$LOG/play.log"

@@ -22,8 +22,9 @@ Every GitHub write goes through `gh-as qa …`.
      `make migrate && make up PORT=<8100 + issue number>` (without COMPOSE_PROJECT_NAME set,
      so it gets its own containers and its own `var/snake.db`).
    - Play at least two games against that port with the opponents in `pipeline/opponents.md`:
-     `SNAKE_URL=http://localhost:<port> bin/play` (solo) and
-     `SNAKE_URL=http://localhost:<port> bin/play shapeshifter http://localhost:8011`.
+     `bin/play --snake http://localhost:<port>` (solo) and
+     `bin/play --snake http://localhost:<port> shapeshifter http://localhost:8011`
+     (run from the worktree, so the games land in its own `var/snake.db`).
    - Read them: `make games ARGS="game <id>"` and `make games ARGS="last <id>"` in the worktree.
      Obviously defective means: dead before turn 15 in the solo game, a move into a wall or
      its own body that the board shows was avoidable, `docker compose logs php` showing errors

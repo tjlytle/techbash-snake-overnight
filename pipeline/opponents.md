@@ -5,6 +5,11 @@ analyst picks from this list; anyone can add a public snake (a laptop through a 
 snake from the room). Keep the URL reachable from this machine. The strong ones run as
 containers from `~/Clients/timlytle.net/opponents/start.sh`.
 
+Every one of them is also public through the lytlelabs.com tunnel, so a laptop or someone in
+the room can play them too: `shapeshifter.lytlelabs.com`, `snork.lytlelabs.com`,
+`hobbs.lytlelabs.com/<snake>`, `random.lytlelabs.com`, `starter-py.lytlelabs.com`,
+`starter-js.lytlelabs.com`. From this box use the local ports below (no round trip).
+
 | name | url | style |
 |---|---|---|
 | shapeshifter | http://localhost:8011 | JonathanArns' Shapeshifter (Rust): paranoid minimax with a Monte-Carlo fallback. Two first places at the 2022 elite tournaments. The one to beat. |

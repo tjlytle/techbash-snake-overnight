@@ -19,7 +19,8 @@ TITLE="${REPO#*/} pipeline"
 
 stage_to_column() { case "$1" in
   stage:todo) echo "Todo";; stage:planned) echo "Planned";; stage:in-progress) echo "In progress";;
-  stage:review) echo "Review";; stage:qa) echo "QA";; stage:done|closed) echo "Done";; stage:parked) echo "Parked";; *) echo "";; esac; }
+  stage:review) echo "Review";; stage:qa) echo "QA";; stage:done|closed) echo "Done";; stage:parked) echo "Parked";;
+  idea) echo "Ideas";; *) echo "";; esac; }   # an open issue with no stage but the idea label sits in Ideas
 column_to_stage() { case "$1" in
   Todo) echo stage:todo;; Planned) echo stage:planned;; "In progress") echo stage:in-progress;;
   Review) echo stage:review;; QA) echo stage:qa;; Done) echo stage:done;; Parked) echo stage:parked;; *) echo "";; esac; }
@@ -32,8 +33,15 @@ create() {
   local num; num=$(jq -r .number <<<"$p")
   gh-as - project link "$num" --owner "$OWNER" --repo "$REPO" >/dev/null 2>&1 || true
   local field; field=$(gh project field-list "$num" --owner "$OWNER" --format json | jq -r '.fields[] | select(.name == "Status") | .id')
-  local opts; opts=$(printf '{name:"%s",color:%s,description:""},' "Todo" GRAY "Planned" PURPLE "In progress" BLUE "Review" YELLOW "QA" GREEN "Done" PINK "Parked" RED)
-  gh-as - api graphql -f query="mutation { updateProjectV2Field(input:{fieldId:\"$field\", singleSelectOptions:[${opts%,}]}) { projectV2Field { ... on ProjectV2SingleSelectField { options { name } } } } }" --jq '.data.updateProjectV2Field.projectV2Field.options | map(.name) | join(", ")'
+  # Setting the options recreates them and blanks every item's Status, so only do it when a column
+  # is missing, and sync straight after so the labels fill the columns back in.
+  local have; have=$(gh project field-list "$num" --owner "$OWNER" --format json | jq -r '.fields[] | select(.name == "Status") | .options[].name')
+  local missing="" c; for c in Ideas Todo Planned "In progress" Review QA Done Parked; do grep -qxF "$c" <<<"$have" || missing="$missing $c"; done
+  if [ -n "$missing" ]; then
+    local opts; opts=$(printf '{name:"%s",color:%s,description:""},' "Ideas" ORANGE "Todo" GRAY "Planned" PURPLE "In progress" BLUE "Review" YELLOW "QA" GREEN "Done" PINK "Parked" RED)
+    gh-as - api graphql -f query="mutation { updateProjectV2Field(input:{fieldId:\"$field\", singleSelectOptions:[${opts%,}]}) { projectV2Field { ... on ProjectV2SingleSelectField { options { name } } } } }" --jq '.data.updateProjectV2Field.projectV2Field.options | map(.name) | join(", ")'
+    sync
+  else echo "columns already in place"; fi
   echo "board #$num: https://github.com/users/$OWNER/projects/$num"
 }
 
@@ -57,9 +65,9 @@ sync() {
   local field; field=$(jq -r .id <<<"$field_json")
   local items; items=$(board_items "$id")
   gh issue list -R "$REPO" --state all --limit 200 --json number,url,state,labels \
-    --jq '.[] | [.number, .url, .state, ([.labels[].name] | map(select(startswith("stage:"))) | .[0] // "")] | @tsv' |
-  while IFS=$'\t' read -r n url state stage; do
-    local want; want=$(stage_to_column "$( [ "$state" = CLOSED ] && echo closed || echo "$stage")")
+    --jq '.[] | [.number, .url, .state, ([.labels[].name] | map(select(startswith("stage:"))) | .[0] // ""), (if any(.labels[].name; . == "idea") then "idea" else "" end)] | @tsv' |
+  while IFS=$'\t' read -r n url state stage idea; do
+    local want; want=$(stage_to_column "$( [ "$state" = CLOSED ] && echo closed || echo "${stage:-$idea}")")
     local row; row=$(jq -c --argjson n "$n" 'select(.number == $n)' <<<"$items" | head -1)
     local item have at
     if [ -z "$row" ]; then
@@ -72,7 +80,9 @@ sync() {
     # They disagree. A human moved the card if the board changed after the label did (open issues only).
     if [ -n "$have" ] && [ "$state" = OPEN ] && [ -n "$at" ] && [[ "$at" > "$(label_time "$n")" ]]; then
       local new; new=$(column_to_stage "$have")
-      if [ -n "$new" ] && [ "$new" != "$stage" ]; then
+      if [ "$have" = Ideas ] && [ -n "$stage" ]; then   # dragged back to Ideas: it is an idea again, not pipeline work
+        gh-as ops issue edit "$n" -R "$REPO" --remove-label "$stage" --add-label idea >/dev/null && echo "#$n label ← board: idea"
+      elif [ -n "$new" ] && [ "$new" != "$stage" ]; then
         gh-as ops issue edit "$n" -R "$REPO" ${stage:+--remove-label "$stage"} --add-label "$new" >/dev/null && echo "#$n label ← board: $have"
       fi
       continue

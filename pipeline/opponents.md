@@ -7,7 +7,7 @@ containers from `~/Clients/timlytle.net/opponents/start.sh`.
 
 Every one of them is also public through the lytlelabs.com tunnel, so a laptop or someone in
 the room can play them too: `shapeshifter.lytlelabs.com`, `snork.lytlelabs.com`,
-`hobbs.lytlelabs.com/<snake>`, `random.lytlelabs.com`, `starter-py.lytlelabs.com`,
+`hobbs.lytlelabs.com/<snake>`, `starter-py.lytlelabs.com`,
 `starter-js.lytlelabs.com`. From this box use the local ports below (no round trip).
 
 | name | url | style |

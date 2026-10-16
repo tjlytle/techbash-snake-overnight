@@ -12,8 +12,8 @@ use Doctrine\DBAL\Schema\PrimaryKeyConstraint;
 use Doctrine\DBAL\Schema\Schema;
 
 /**
- * An Application on an in-memory SQLite database with the event-store and
- * projection tables created, for tests that drive the HTTP stack in-process.
+ * An Application on an in-memory SQLite database with the event-store,
+ * snapshot and projection tables created, for tests that drive the HTTP stack in-process.
  */
 final class TestSchema
 {
@@ -40,6 +40,12 @@ final class TestSchema
         $messages->addColumn('payload', 'text', ['notnull' => true]);
         $messages->addPrimaryKeyConstraint(PrimaryKeyConstraint::editor()->setUnquotedColumnNames('id')->create());
         $messages->addUniqueIndex(['aggregate_root_id', 'version']);
+
+        $snapshots = $schema->createTable('snapshots');
+        $snapshots->addColumn('aggregate_root_id', 'string', ['length' => 36, 'notnull' => true]);
+        $snapshots->addColumn('aggregate_root_version', 'integer', ['notnull' => true]);
+        $snapshots->addColumn('state', 'text', ['notnull' => true]);
+        $snapshots->addPrimaryKeyConstraint(PrimaryKeyConstraint::editor()->setUnquotedColumnNames('aggregate_root_id')->create());
 
         $stats = $schema->createTable('game_stats');
         $stats->addColumn('aggregate_id', 'string', ['length' => 36, 'notnull' => true]);

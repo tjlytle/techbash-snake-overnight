@@ -12,9 +12,10 @@ use BattleSnake\EventSourcing\Events\Nudge;
 use BattleSnake\EventSourcing\Events\Start;
 use BattleSnake\EventSourcing\Events\Turn;
 use BattleSnake\Strategy\Strategy;
-use EventSauce\EventSourcing\AggregateRoot;
 use EventSauce\EventSourcing\AggregateRootBehaviour;
 use EventSauce\EventSourcing\AggregateRootId;
+use EventSauce\EventSourcing\Snapshotting\AggregateRootWithSnapshotting;
+use EventSauce\EventSourcing\Snapshotting\SnapshottingBehaviour;
 
 /**
  * The lifecycle of one Battlesnake game.
@@ -23,10 +24,15 @@ use EventSauce\EventSourcing\AggregateRootId;
  * Strategies can read it ($game->last_nudge, $game->turn, etc.) without
  * needing to know anything about event sourcing. Mutation is confined to
  * the protected apply* methods.
+ *
+ * Those same properties are the snapshot state, so a long game is rebuilt
+ * from its newest snapshot plus the events after it instead of replaying
+ * every Turn (see SnapshottingGameRepository).
  */
-final class Game implements AggregateRoot
+final class Game implements AggregateRootWithSnapshotting
 {
     use AggregateRootBehaviour;
+    use SnapshottingBehaviour;
 
     public private(set) bool $is_started = false;
     public private(set) bool $is_finished = false;
@@ -79,6 +85,35 @@ final class Game implements AggregateRoot
             throw new InvalidState('Game cannot be ended');
         }
         $this->recordThat(new End($final));
+    }
+
+    /**
+     * @return array{is_started: bool, is_finished: bool, turn: int, last_nudge: ?string, last_move: ?string}
+     */
+    protected function createSnapshotState(): array
+    {
+        return [
+            'is_started' => $this->is_started,
+            'is_finished' => $this->is_finished,
+            'turn' => $this->turn,
+            'last_nudge' => $this->last_nudge?->value,
+            'last_move' => $this->last_move?->value,
+        ];
+    }
+
+    /**
+     * @param array{is_started: bool, is_finished: bool, turn: int, last_nudge: ?string, last_move: ?string} $state
+     */
+    protected static function reconstituteFromSnapshotState(AggregateRootId $id, $state): AggregateRootWithSnapshotting
+    {
+        $game = self::createNewInstance($id);
+        $game->is_started = $state['is_started'];
+        $game->is_finished = $state['is_finished'];
+        $game->turn = $state['turn'];
+        $game->last_nudge = Direction::tryFrom((string) $state['last_nudge']);
+        $game->last_move = Direction::tryFrom((string) $state['last_move']);
+
+        return $game;
     }
 
     protected function applyStart(Start $_event): void

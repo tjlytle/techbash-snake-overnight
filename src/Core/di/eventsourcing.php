@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use BattleSnake\EventSourcing\DbalSnapshotRepository;
 use BattleSnake\EventSourcing\Game;
 use BattleSnake\EventSourcing\Projection\GameStatProjector;
 use BattleSnake\EventSourcing\SerdePayloadSerializer;
+use BattleSnake\EventSourcing\SnapshottingGameRepository;
 use Crell\Serde\Serde;
 use Crell\Serde\SerdeCommon;
 use Doctrine\DBAL\Connection;
@@ -15,6 +17,8 @@ use EventSauce\EventSourcing\MessageRepository;
 use EventSauce\EventSourcing\Serialization\ConstructingMessageSerializer;
 use EventSauce\EventSourcing\Serialization\MessageSerializer;
 use EventSauce\EventSourcing\Serialization\PayloadSerializer;
+use EventSauce\EventSourcing\Snapshotting\ConstructingAggregateRootRepositoryWithSnapshotting;
+use EventSauce\EventSourcing\Snapshotting\SnapshotRepository;
 use EventSauce\EventSourcing\SynchronousMessageDispatcher;
 use EventSauce\IdEncoding\StringIdEncoder;
 use EventSauce\MessageRepository\DoctrineMessageRepository\DoctrineMessageRepository;
@@ -48,12 +52,28 @@ return [
         );
     },
 
+    // Handlers get the snapshotting repository: a long game is rebuilt from its
+    // newest snapshot plus the events after it, not from every Turn since Start.
     AggregateRootRepository::class => static function (ContainerInterface $c): AggregateRootRepository {
-        return new EventSourcedAggregateRootRepository(
-            aggregateRootClassName: Game::class,
-            messageRepository: $c->get(MessageRepository::class),
-            dispatcher: $c->get(MessageDispatcher::class),
+        $messages = $c->get(MessageRepository::class);
+
+        return new SnapshottingGameRepository(
+            games: new ConstructingAggregateRootRepositoryWithSnapshotting(
+                aggregateRootClassName: Game::class,
+                messageRepository: $messages,
+                snapshotRepository: $c->get(SnapshotRepository::class),
+                regularRepository: new EventSourcedAggregateRootRepository(
+                    aggregateRootClassName: Game::class,
+                    messageRepository: $messages,
+                    dispatcher: $c->get(MessageDispatcher::class),
+                ),
+            ),
+            every: 10,
         );
+    },
+
+    SnapshotRepository::class => static function (ContainerInterface $c): SnapshotRepository {
+        return new DbalSnapshotRepository($c->get(Connection::class), 'snapshots');
     },
 
     GameStatProjector::class => DI\autowire(),

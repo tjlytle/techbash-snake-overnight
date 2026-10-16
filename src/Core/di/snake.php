@@ -12,6 +12,7 @@ use BattleSnake\Analyzer\MoveClassifier;
 use BattleSnake\Domain\GameState;
 use BattleSnake\EventSourcing\Game;
 use BattleSnake\Snake\AvoidDeadEnds;
+use BattleSnake\Snake\DodgeLongerHeads;
 use BattleSnake\Snake\HuntFoodWhenHungry;
 use BattleSnake\Snake\RandomSnake;
 use BattleSnake\Strategy\Aggregate\Conditional;
@@ -30,6 +31,8 @@ return [
     //   40 and up  RandomSnake
     //   15 to 39   HuntFoodWhenHungry, SAFE moves first
     //   under 15   HuntFoodWhenHungry, desperate: nearest food unless certain death
+    // DodgeLongerHeads overrides the first two when a longer (or equal) head is within two
+    // squares; a starving snake takes the food anyway.
     // AvoidDeadEnds vetoes the pick when it leads into a pocket with less room than our length.
     // RandomSnake catches any END move that is left.
     'TechBashSnake' => DI\factory(static fn(MoveClassifier $classifier, RandomSnake $random): Strategy => new Fallback(
@@ -40,8 +43,8 @@ return [
                     $state->you->health < 40 => 1,
                     default => 0,
                 },
-                $random,
-                new HuntFoodWhenHungry($classifier),
+                new DodgeLongerHeads($random, $classifier),
+                new DodgeLongerHeads(new HuntFoodWhenHungry($classifier), $classifier),
                 new HuntFoodWhenHungry($classifier, desperate: true),
             ),
             $classifier,

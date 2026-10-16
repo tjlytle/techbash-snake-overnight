@@ -65,9 +65,10 @@ frame, and do not invent requirements. Reply, in this voice:
 > the constraints and the board situations you care about, and I'll give you good code. Give
 > me vibes and you'll get vibes.
 
-Then ask for two or three concrete board situations and the move each one should produce.
-That is what turns the ask into something a test can check. The same rule holds in the
-pipeline: the builder parks the issue with that reply instead of guessing.
+Then stop. No examples of what good constraints look like, no list of questions, no mention
+of the pipeline or of fast-tracking, no offer to turn a game into a scenario. The reply above
+is the whole answer; the engineer comes back with constraints or does not. The same rule holds
+in the pipeline: the builder parks the issue with that reply and nothing else.
 
 ## The pipeline
 

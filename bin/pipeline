@@ -160,6 +160,7 @@ due() {   # due <#> <labels-csv> → prompt to run, or empty
 
 pass() {   # one sweep over the open issues
   reap
+  "$ROOT/bin/board" sync 2>/dev/null | sed 's/^/board: /'   # the board follows the labels, and a dragged card moves its label
   while IFS=$'\t' read -r n title labels; do
     [ -z "$n" ] && continue
     if [ -d "$LOG/run-$n" ]; then say "#$n  $title  (running)"; continue; fi

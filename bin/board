@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# bin/board — the GitHub Projects board that mirrors the pipeline's stage labels.
+#
+#   bin/board create     make the board "<repo> pipeline" under the owner (idempotent), link it to
+#                        the repo, and give its Status field the stage columns
+#   bin/board sync       keep labels and board in step for every issue: whichever changed last
+#                        wins, so a bot's label move shows on the board and a human dragging a
+#                        card moves the label; closed issues go to Done. The loop runs this every pass
+#   bin/board url        print the board's URL
+#
+# Labels are what the bots read (an App cannot see a Projects board); the board is for people.
+# Everything here runs under the user's own auth (gh-as -), because only a user can own a board.
+set -u
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+REPO=${PIPELINE_REPO:-$(cd "$ROOT" && gh repo view --json nameWithOwner --jq .nameWithOwner)}
+OWNER=${REPO%%/*}
+TITLE="${REPO#*/} pipeline"
+
+stage_to_column() { case "$1" in
+  stage:todo) echo "Todo";; stage:planned) echo "Planned";; stage:in-progress) echo "In progress";;
+  stage:review) echo "Review";; stage:qa) echo "QA";; stage:done|closed) echo "Done";; stage:parked) echo "Parked";; *) echo "";; esac; }
+column_to_stage() { case "$1" in
+  Todo) echo stage:todo;; Planned) echo stage:planned;; "In progress") echo stage:in-progress;;
+  Review) echo stage:review;; QA) echo stage:qa;; Done) echo stage:done;; Parked) echo stage:parked;; *) echo "";; esac; }
+
+project_json() { gh project list --owner "$OWNER" --format json --limit 100 | jq -c --arg t "$TITLE" '.projects[] | select(.title == $t)'; }
+
+create() {
+  local p; p=$(project_json)
+  if [ -z "$p" ]; then gh-as - project create --owner "$OWNER" --title "$TITLE" --format json >/dev/null; p=$(project_json); fi
+  local num; num=$(jq -r .number <<<"$p")
+  gh-as - project link "$num" --owner "$OWNER" --repo "$REPO" >/dev/null 2>&1 || true
+  local field; field=$(gh project field-list "$num" --owner "$OWNER" --format json | jq -r '.fields[] | select(.name == "Status") | .id')
+  local opts; opts=$(printf '{name:"%s",color:%s,description:""},' "Todo" GRAY "Planned" PURPLE "In progress" BLUE "Review" YELLOW "QA" GREEN "Done" PINK "Parked" RED)
+  gh-as - api graphql -f query="mutation { updateProjectV2Field(input:{fieldId:\"$field\", singleSelectOptions:[${opts%,}]}) { projectV2Field { ... on ProjectV2SingleSelectField { options { name } } } } }" --jq '.data.updateProjectV2Field.projectV2Field.options | map(.name) | join(", ")'
+  echo "board #$num: https://github.com/users/$OWNER/projects/$num"
+}
+
+# The board's items with their Status and when they last changed, one JSON line each.
+board_items() {   # board_items <project node id>
+  gh api graphql -f id="$1" -f query='query($id: ID!) { node(id: $id) { ... on ProjectV2 { items(first: 200) { nodes { id updatedAt
+    content { ... on Issue { number } }
+    status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name updatedAt } } } } } } }' \
+    --jq '.data.node.items.nodes[] | select(.content.number != null) | {id, number: .content.number, status: (.status.name // ""), at: (.status.updatedAt // .updatedAt)}' 2>/dev/null
+}
+
+# When the issue's stage label was last set (the newest "labeled" event for a stage: label).
+label_time() {   # label_time <#>
+  gh api "repos/$REPO/issues/$1/timeline?per_page=100" --jq '[.[] | select(.event == "labeled" and (.label.name | startswith("stage:")))] | last | .created_at // ""' 2>/dev/null
+}
+
+sync() {
+  local p; p=$(project_json); [ -n "$p" ] || { echo "no board; run bin/board create" >&2; exit 1; }
+  local num id; num=$(jq -r .number <<<"$p"); id=$(jq -r .id <<<"$p")
+  local field_json; field_json=$(gh project field-list "$num" --owner "$OWNER" --format json | jq -c '.fields[] | select(.name == "Status")')
+  local field; field=$(jq -r .id <<<"$field_json")
+  local items; items=$(board_items "$id")
+  gh issue list -R "$REPO" --state all --limit 200 --json number,url,state,labels \
+    --jq '.[] | [.number, .url, .state, ([.labels[].name] | map(select(startswith("stage:"))) | .[0] // "")] | @tsv' |
+  while IFS=$'\t' read -r n url state stage; do
+    local want; want=$(stage_to_column "$( [ "$state" = CLOSED ] && echo closed || echo "$stage")")
+    local row; row=$(jq -c --argjson n "$n" 'select(.number == $n)' <<<"$items" | head -1)
+    local item have at
+    if [ -z "$row" ]; then
+      [ -n "$want" ] || continue
+      item=$(gh-as - project item-add "$num" --owner "$OWNER" --url "$url" --format json | jq -r .id); have=""; at=""
+    else
+      item=$(jq -r .id <<<"$row"); have=$(jq -r .status <<<"$row"); at=$(jq -r .at <<<"$row")
+    fi
+    [ "$have" = "$want" ] && continue
+    # They disagree. A human moved the card if the board changed after the label did (open issues only).
+    if [ -n "$have" ] && [ "$state" = OPEN ] && [ -n "$at" ] && [[ "$at" > "$(label_time "$n")" ]]; then
+      local new; new=$(column_to_stage "$have")
+      if [ -n "$new" ] && [ "$new" != "$stage" ]; then
+        gh-as - issue edit "$n" -R "$REPO" ${stage:+--remove-label "$stage"} --add-label "$new" >/dev/null && echo "#$n label ← board: $have"
+      fi
+      continue
+    fi
+    [ -n "$want" ] || continue
+    local opt; opt=$(jq -r --arg w "$want" '.options[] | select(.name == $w) | .id' <<<"$field_json")
+    gh-as - project item-edit --project-id "$id" --id "$item" --field-id "$field" --single-select-option-id "$opt" >/dev/null && echo "#$n board ← label: $want"
+  done
+}
+
+case "${1:-}" in
+  create) create ;;
+  sync)   sync ;;
+  url)    p=$(project_json); echo "https://github.com/users/$OWNER/projects/$(jq -r .number <<<"$p")" ;;
+  *) sed -n '2,13p' "$0"; exit 2 ;;
+esac
